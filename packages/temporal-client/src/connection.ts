@@ -15,7 +15,10 @@ export async function createConnection(
     config?.namespace ?? process.env.TEMPORAL_NAMESPACE ?? "default";
   const apiKey = config?.apiKey ?? process.env.TEMPORAL_API_KEY;
 
-  if (apiKey && address.includes("tmprl.cloud")) {
+  const isCloud =
+    address.includes("tmprl.cloud") || address.includes("temporal.io");
+
+  if (apiKey && isCloud) {
     return Connection.connect({
       address,
       tls: true,

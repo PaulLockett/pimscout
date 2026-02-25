@@ -25,7 +25,8 @@ async function run() {
 
   const connection = await NativeConnection.connect({
     address,
-    ...(apiKey && address.includes("tmprl.cloud")
+    ...(apiKey &&
+    (address.includes("tmprl.cloud") || address.includes("temporal.io"))
       ? { tls: true, apiKey, metadata: { "temporal-namespace": namespace } }
       : {}),
   });
