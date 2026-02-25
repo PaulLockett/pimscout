@@ -1,0 +1,19 @@
+{
+  "name": "PimScout",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "forwardPorts": [3000, 5432, 7233, 8080, 54323],
+  "portsAttributes": {
+    "3000": { "label": "Scout Dashboard (Web)" },
+    "8080": { "label": "Temporal UI" },
+    "54323": { "label": "Supabase Studio" },
+    "5432": { "label": "PostgreSQL", "onAutoForward": "silent" },
+    "7233": { "label": "Temporal gRPC", "onAutoForward": "silent" }
+  }
+}
