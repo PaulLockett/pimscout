@@ -38,9 +38,9 @@ jobs:
           fi
 
           echo "Creating branch $BRANCH_NAME"
-          # CLI prefixes "Created preview branch:" before JSON — extract JSON only
+          # CLI prefixes "Created preview branch:" before multi-line JSON
           RESULT=$(supabase branches create "$BRANCH_NAME" --output json 2>&1 || true)
-          BRANCH_ID=$(echo "$RESULT" | grep -o '{.*}' | jq -r '.id // empty' 2>/dev/null || echo "")
+          BRANCH_ID=$(echo "$RESULT" | sed -n '/{/,/}/p' | jq -r '.id // empty' 2>/dev/null || echo "")
 
           if [ -z "$BRANCH_ID" ]; then
             echo "::warning::Could not create Supabase branch. Output: $RESULT"
