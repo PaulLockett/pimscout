@@ -27,24 +27,44 @@ jobs:
         run: |
           BRANCH_NAME="pr-${{ github.event.number }}"
 
-          # Check if branch already exists
-          EXISTING=$(supabase branches list --output json | jq -r ".[] | select(.git_branch == \"$BRANCH_NAME\") | .id" 2>/dev/null || echo "")
+          # Check if branch already exists (field is .name, not .git_branch)
+          EXISTING=$(supabase branches list --output json \
+            | jq -r ".[] | select(.name == \"$BRANCH_NAME\") | .id" 2>/dev/null || echo "")
 
           if [ -n "$EXISTING" ]; then
-            echo "Resetting existing branch $EXISTING"
-            supabase branches reset "$EXISTING"
-            echo "branch_id=$EXISTING" >> "$GITHUB_OUTPUT"
-          else
-            echo "Creating new branch $BRANCH_NAME"
-            RESULT=$(supabase branches create "$BRANCH_NAME" --output json 2>&1 || true)
-            BRANCH_ID=$(echo "$RESULT" | jq -r '.id // empty' 2>/dev/null || echo "")
-            if [ -z "$BRANCH_ID" ]; then
-              echo "::warning::Could not create Supabase branch. Output: $RESULT"
-              echo "branch_id=" >> "$GITHUB_OUTPUT"
-            else
-              echo "branch_id=$BRANCH_ID" >> "$GITHUB_OUTPUT"
-            fi
+            echo "Deleting and recreating branch $EXISTING to pick up new migrations"
+            supabase branches delete "$EXISTING" || true
+            sleep 5
           fi
+
+          echo "Creating branch $BRANCH_NAME"
+          # CLI prefixes "Created preview branch:" before JSON — extract JSON only
+          RESULT=$(supabase branches create "$BRANCH_NAME" --output json 2>&1 || true)
+          BRANCH_ID=$(echo "$RESULT" | grep -o '{.*}' | jq -r '.id // empty' 2>/dev/null || echo "")
+
+          if [ -z "$BRANCH_ID" ]; then
+            echo "::warning::Could not create Supabase branch. Output: $RESULT"
+            echo "branch_id=" >> "$GITHUB_OUTPUT"
+          else
+            echo "Branch created: $BRANCH_ID"
+            echo "branch_id=$BRANCH_ID" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait for branch to be ready
+        if: steps.branch.outputs.branch_id != ''
+        run: |
+          BRANCH_ID="${{ steps.branch.outputs.branch_id }}"
+          echo "Waiting for branch $BRANCH_ID to become active..."
+          for i in $(seq 1 30); do
+            STATUS=$(supabase branches list --output json \
+              | jq -r ".[] | select(.id == \"$BRANCH_ID\") | .preview_project_status" 2>/dev/null || echo "")
+            echo "  Attempt $i: status=$STATUS"
+            if [ "$STATUS" = "ACTIVE_HEALTHY" ]; then
+              echo "Branch is ready"
+              break
+            fi
+            sleep 10
+          done
 
       - name: Push migrations to preview branch
         if: steps.branch.outputs.branch_id != ''
@@ -117,7 +137,7 @@ jobs:
           BRANCH_NAME="pr-${{ github.event.number }}"
           BRANCH_ID=$(supabase branches list \
             --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
-            --output json | jq -r ".[] | select(.git_branch == \"$BRANCH_NAME\") | .id" 2>/dev/null || echo "")
+            --output json | jq -r ".[] | select(.name == \"$BRANCH_NAME\") | .id" 2>/dev/null || echo "")
 
           if [ -n "$BRANCH_ID" ]; then
             echo "Deleting Supabase branch $BRANCH_ID ($BRANCH_NAME)"
