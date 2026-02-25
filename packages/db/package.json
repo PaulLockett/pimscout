@@ -14,6 +14,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@upstash/redis": "^1.34.0",
     "drizzle-orm": "^0.38.0",
     "postgres": "^3.4.5"
   },

@@ -11,15 +11,19 @@
   "dependencies": {
     "@pimscout/db": "workspace:*",
     "@pimscout/schemas": "workspace:*",
-    "@temporalio/activity": "^1.11.7"
+    "@temporalio/activity": "^1.11.7",
+    "drizzle-orm": "^0.38.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "^5.7.3"
+    "dotenv": "^16.4.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.0"
   },
   "scripts": {
     "build": "tsc",
     "lint": "eslint src/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   }
 }
