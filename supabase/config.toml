@@ -1,5 +1,4 @@
-[project]
-id = "dchcdcauleetejlmuteq"
+project_id = "pimscout"
 
 [api]
 port = 54321
