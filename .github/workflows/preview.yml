@@ -68,6 +68,7 @@ jobs:
 
       - name: Push migrations to preview branch
         if: steps.branch.outputs.branch_id != ''
+        id: push
         run: |
           if ls supabase/migrations/*.sql 1>/dev/null 2>&1; then
             supabase db push --linked
@@ -83,10 +84,19 @@ jobs:
         with:
           script: |
             const branchId = '${{ steps.branch.outputs.branch_id }}';
+            const pushOutcome = '${{ steps.push.outcome }}';
             const hasMigrations = ${{ hashFiles('supabase/migrations/*.sql') != '' }};
-            const dbStatus = branchId
-              ? '✅ Supabase preview branch active — migrations applied'
-              : (hasMigrations ? '⚠️ Supabase branch creation failed — check logs' : 'ℹ️ No migrations in this PR');
+
+            let dbStatus;
+            if (!branchId) {
+              dbStatus = hasMigrations
+                ? '⚠️ Supabase branch creation failed — check logs'
+                : 'ℹ️ No migrations in this PR';
+            } else if (pushOutcome === 'success' || pushOutcome === 'skipped') {
+              dbStatus = '✅ Supabase preview branch active — migrations applied';
+            } else {
+              dbStatus = '⚠️ Supabase preview branch created but migration push failed — check logs';
+            }
 
             const body = [
               '## Preview Environment',
