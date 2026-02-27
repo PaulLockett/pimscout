@@ -32,3 +32,4 @@ export const enrichmentAccess = {
 
 export type { QualifyInput, QualifyResult, EngageInput, AdvanceInput, RetrieveResult } from "./founder.js";
 export type { DraftInput, RetrieveMessagesOptions, HydratedMessage } from "./message.js";
+export type { SupplementInput, LookupOptions, HydratedEnrichment } from "./enrichment.js";
