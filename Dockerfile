@@ -50,7 +50,7 @@ set -e
 case "$COMPONENT" in
   web)
     echo "Starting PimScout Web (Scout Dashboard)..."
-    cd apps/web && node .next/standalone/server.js
+    cd apps/web/.next/standalone && node apps/web/server.js
     ;;
   relationship-manager|composing-engine|enriching-engine|founder-access|message-access|delivery-access|enrichment-access)
     echo "Starting Temporal worker: $COMPONENT..."

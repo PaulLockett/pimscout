@@ -3,10 +3,12 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./engines": "./src/engines/index.ts",
-    "./resource-access": "./src/resource-access/index.ts"
+    ".": "./dist/index.js",
+    "./engines": "./dist/engines/index.js",
+    "./resource-access": "./dist/resource-access/index.js"
   },
   "dependencies": {
     "@pimscout/db": "workspace:*",
