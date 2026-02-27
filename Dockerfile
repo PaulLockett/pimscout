@@ -34,6 +34,7 @@ RUN pnpm turbo build
 # ── Runtime stage ────────────────────────────────────────
 FROM node:20-slim AS runner
 
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
 WORKDIR /app
