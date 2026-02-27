@@ -34,7 +34,7 @@ async function run() {
   let workflowsPath: string | undefined;
   if (config.workflowSubpath) {
     workflowsPath = new URL(
-      `../../packages/temporal-workflows/src/${config.workflowSubpath}/index.ts`,
+      `../../../packages/temporal-workflows/src/${config.workflowSubpath}/index.ts`,
       import.meta.url,
     ).pathname;
   }

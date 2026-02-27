@@ -2,7 +2,7 @@
 # COMPONENT env var selects which service to run
 
 # ── Build stage ──────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
@@ -32,8 +32,9 @@ COPY apps/web/ apps/web/
 RUN pnpm turbo build
 
 # ── Runtime stage ────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
 WORKDIR /app
@@ -50,7 +51,7 @@ set -e
 case "$COMPONENT" in
   web)
     echo "Starting PimScout Web (Scout Dashboard)..."
-    cd apps/web && node .next/standalone/server.js
+    cd apps/web/.next/standalone && node apps/web/server.js
     ;;
   relationship-manager|composing-engine|enriching-engine|founder-access|message-access|delivery-access|enrichment-access)
     echo "Starting Temporal worker: $COMPONENT..."

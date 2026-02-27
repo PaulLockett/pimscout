@@ -37,6 +37,22 @@ const VAR_ROUTING: Record<string, readonly string[]> = {
     "enrichment-access",
   ],
 
+  // Redis — resource-access services + manager (dual-store)
+  UPSTASH_REDIS_REST_URL: [
+    "relationship-manager",
+    "founder-access",
+    "message-access",
+    "delivery-access",
+    "enrichment-access",
+  ],
+  UPSTASH_REDIS_REST_TOKEN: [
+    "relationship-manager",
+    "founder-access",
+    "message-access",
+    "delivery-access",
+    "enrichment-access",
+  ],
+
   // Email — only delivery-access sends email
   RESEND_API_KEY: ["delivery-access"],
 
