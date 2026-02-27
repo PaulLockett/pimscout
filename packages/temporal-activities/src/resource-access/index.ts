@@ -15,7 +15,7 @@ export const messageAccess = {
   draft: message.draft,
   approve: message.approve,
   dispatch: message.dispatch,
-  retrieve: message.retrieveMessages,
+  retrieveMessages: message.retrieveMessages,
 };
 
 export const deliveryAccess = {
@@ -29,3 +29,6 @@ export const enrichmentAccess = {
   verify: enrichment.verify,
   supplement: enrichment.supplement,
 };
+
+export type { QualifyInput, QualifyResult, EngageInput, AdvanceInput, RetrieveResult } from "./founder.js";
+export type { DraftInput, RetrieveMessagesOptions, HydratedMessage } from "./message.js";
