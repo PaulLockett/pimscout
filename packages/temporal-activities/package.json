@@ -14,7 +14,8 @@
     "@pimscout/db": "workspace:*",
     "@pimscout/schemas": "workspace:*",
     "@temporalio/activity": "^1.11.7",
-    "drizzle-orm": "^0.38.0"
+    "drizzle-orm": "^0.38.0",
+    "resend": "^6.9.2"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

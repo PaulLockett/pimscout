@@ -1,26 +1,146 @@
-// DeliveryAccess activities — SCO-8
-// Stub activities for infrastructure validation
+// DeliveryAccess — encapsulates delivery provider volatility (Resend today, SendGrid/SES tomorrow)
+// Two business verbs: dispatch (deliver an approved message) and track (check delivery status)
 
-export async function send(
-  messageId: string,
-  _payload: unknown,
-): Promise<string> {
-  console.log(
-    `DeliveryAccess.send not yet implemented — see SCO-8. messageId: ${messageId}`,
-  );
-  return `delivery-pending-${messageId}`;
+import { Resend } from "resend";
+import { eq } from "drizzle-orm";
+import { getDb, getRedis, messages } from "@pimscout/db";
+
+// ─── Resend Client (lazy singleton) ─────────────────────────────────────────
+
+let resendClient: Resend | null = null;
+
+function getResend(): Resend {
+  if (!resendClient) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) throw new Error("RESEND_API_KEY environment variable is required");
+    resendClient = new Resend(apiKey);
+  }
+  return resendClient;
 }
 
-export async function track(deliveryId: string): Promise<string> {
-  console.log(
-    `DeliveryAccess.track not yet implemented — see SCO-8. deliveryId: ${deliveryId}`,
-  );
-  return "unknown";
+// ─── Input / Output Types ───────────────────────────────────────────────────
+
+export interface DispatchInput {
+  messageId: string;
+  from?: string;
 }
 
-export async function verifyDelivery(deliveryId: string): Promise<boolean> {
-  console.log(
-    `DeliveryAccess.verifyDelivery not yet implemented — see SCO-8. deliveryId: ${deliveryId}`,
+export interface DispatchResult {
+  resendId: string;
+  messageId: string;
+}
+
+export interface TrackResult {
+  messageId: string;
+  resendId: string;
+  status: "delivered" | "bounced" | "sent" | "opened";
+  lastEventAt: string | null;
+}
+
+interface DeliveryRecord {
+  resendId: string;
+  sentAt: string;
+  status: string;
+}
+
+// ─── Business Verbs ─────────────────────────────────────────────────────────
+
+export async function dispatch(input: DispatchInput): Promise<DispatchResult> {
+  const db = getDb();
+  const redis = getRedis();
+  const resend = getResend();
+
+  // Guard: message must exist
+  const [message] = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.id, input.messageId));
+
+  if (!message) {
+    throw new Error(`Message ${input.messageId} not found`);
+  }
+
+  // Guard: message must be approved
+  if (message.status !== "approved") {
+    throw new Error(
+      `Message ${input.messageId} is "${message.status}", must be "approved" to dispatch`,
+    );
+  }
+
+  // Read envelope from Redis (recipients, cc)
+  const envelope = await redis.get<{ recipients: string[]; cc: string[] }>(
+    `msg:${input.messageId}:envelope`,
   );
-  return false;
+
+  if (!envelope || !envelope.recipients?.length) {
+    throw new Error(`No envelope found for message ${input.messageId}`);
+  }
+
+  // Send via Resend
+  const from = input.from ?? "paul@pimandco.ai";
+  const { data, error } = await resend.emails.send({
+    from,
+    to: envelope.recipients,
+    cc: envelope.cc.length > 0 ? envelope.cc : undefined,
+    subject: message.subject,
+    html: message.body,
+  });
+
+  if (error || !data) {
+    throw new Error(`Resend send failed: ${error?.message ?? "unknown error"}`);
+  }
+
+  // Store delivery metadata in Redis
+  const deliveryRecord: DeliveryRecord = {
+    resendId: data.id,
+    sentAt: new Date().toISOString(),
+    status: "sent",
+  };
+  await redis.set(`msg:${input.messageId}:delivery`, deliveryRecord);
+
+  // Update message status to sent in Pg
+  await db
+    .update(messages)
+    .set({ status: "sent", updatedAt: new Date() })
+    .where(eq(messages.id, input.messageId));
+
+  return { resendId: data.id, messageId: input.messageId };
+}
+
+export async function track(messageId: string): Promise<TrackResult> {
+  const redis = getRedis();
+  const resend = getResend();
+
+  // Read delivery record from Redis
+  const delivery = await redis.get<DeliveryRecord>(
+    `msg:${messageId}:delivery`,
+  );
+
+  if (!delivery) {
+    throw new Error(`No delivery record found for message ${messageId}`);
+  }
+
+  // Fetch current status from Resend
+  const { data, error } = await resend.emails.get(delivery.resendId);
+
+  if (error || !data) {
+    throw new Error(
+      `Resend get failed: ${error?.message ?? "unknown error"}`,
+    );
+  }
+
+  // Map Resend's last_event to our status
+  const lastEvent = data.last_event;
+  const status = (
+    ["delivered", "bounced", "opened"].includes(lastEvent ?? "")
+      ? lastEvent
+      : "sent"
+  ) as TrackResult["status"];
+
+  return {
+    messageId,
+    resendId: delivery.resendId,
+    status,
+    lastEventAt: data.last_event ? new Date().toISOString() : null,
+  };
 }
