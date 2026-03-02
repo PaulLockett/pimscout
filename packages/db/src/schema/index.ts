@@ -58,6 +58,12 @@ export const conversionPathEnum = pgEnum("conversion_path", [
   "network",
 ]);
 
+export const enrichmentProtocolEnum = pgEnum("enrichment_protocol", [
+  "webhook",
+  "api",
+  "file",
+]);
+
 // ─── Entity Tables ──────────────────────────────────────────────────────────
 
 export const founders = pgTable(
@@ -131,6 +137,17 @@ export const messages = pgTable("messages", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const enrichments = pgTable("enrichments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  founderId: uuid("founder_id")
+    .notNull()
+    .references(() => founders.id),
+  source: text("source").notNull(),
+  protocol: enrichmentProtocolEnum("protocol").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ─── History Tables (append-only, field-level change log) ───────────────────
 
 export const founderChanges = pgTable("founder_changes", {
@@ -166,10 +183,22 @@ export const relationshipChanges = pgTable("relationship_changes", {
   changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const enrichmentChanges = pgTable("enrichment_changes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  enrichmentId: uuid("enrichment_id")
+    .notNull()
+    .references(() => enrichments.id),
+  fieldName: text("field_name").notNull(),
+  oldValue: text("old_value"),
+  newValue: text("new_value").notNull(),
+  changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ─── Drizzle Relations ──────────────────────────────────────────────────────
 
 export const foundersRelations = relations(founders, ({ many }) => ({
   relationships: many(relationships),
+  enrichments: many(enrichments),
   changes: many(founderChanges),
 }));
 
@@ -224,6 +253,24 @@ export const relationshipChangesRelations = relations(
     relationship: one(relationships, {
       fields: [relationshipChanges.relationshipId],
       references: [relationships.id],
+    }),
+  }),
+);
+
+export const enrichmentsRelations = relations(enrichments, ({ one, many }) => ({
+  founder: one(founders, {
+    fields: [enrichments.founderId],
+    references: [founders.id],
+  }),
+  changes: many(enrichmentChanges),
+}));
+
+export const enrichmentChangesRelations = relations(
+  enrichmentChanges,
+  ({ one }) => ({
+    enrichment: one(enrichments, {
+      fields: [enrichmentChanges.enrichmentId],
+      references: [enrichments.id],
     }),
   }),
 );

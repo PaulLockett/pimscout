@@ -1,5 +1,14 @@
 name: CI
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   check:
@@ -19,10 +28,81 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
     steps:
+      - name: Provision preview Redis for PR
+        if: github.event_name == 'pull_request'
+        env:
+          UPSTASH_EMAIL: ${{ secrets.UPSTASH_EMAIL }}
+          UPSTASH_API_KEY: ${{ secrets.UPSTASH_API_KEY }}
+        run: |
+          DB_NAME="pimscout-pr-${{ github.event.pull_request.number }}"
+
+          # Check if database already exists
+          EXISTING=$(curl -s -u "$UPSTASH_EMAIL:$UPSTASH_API_KEY" \
+            https://api.upstash.com/v2/redis/databases | \
+            jq -r ".[] | select(.database_name == \"$DB_NAME\")")
+
+          if [ -n "$EXISTING" ]; then
+            echo "Database $DB_NAME already exists, reusing"
+            REST_URL="https://$(echo "$EXISTING" | jq -r '.endpoint')"
+            REST_TOKEN=$(echo "$EXISTING" | jq -r '.rest_token')
+          else
+            echo "Creating database $DB_NAME"
+            RESPONSE=$(curl -s -u "$UPSTASH_EMAIL:$UPSTASH_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\": \"$DB_NAME\", \"region\": \"global\", \"primary_region\": \"us-east-1\", \"tls\": true}" \
+              https://api.upstash.com/v2/redis/database)
+            REST_URL="https://$(echo "$RESPONSE" | jq -r '.endpoint')"
+            REST_TOKEN=$(echo "$RESPONSE" | jq -r '.rest_token')
+          fi
+
+          echo "::add-mask::$REST_TOKEN"
+          echo "UPSTASH_REDIS_REST_URL=$REST_URL" >> "$GITHUB_ENV"
+          echo "UPSTASH_REDIS_REST_TOKEN=$REST_TOKEN" >> "$GITHUB_ENV"
+          echo "UPSTASH_DB_NAME=$DB_NAME" >> "$GITHUB_ENV"
+          echo "UPSTASH_DB_ENDPOINT=${REST_URL#https://}" >> "$GITHUB_ENV"
+          echo "Preview Redis provisioned: $DB_NAME"
+
+      - name: Comment preview Redis status on PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_MARKER="<!-- upstash-redis-preview -->"
+          BODY="${COMMENT_MARKER}
+          **Upstash Redis Preview Database**
+
+          | | Status | Details |
+          | :--- | :--- | :--- |
+          | Database | ✅ Active | \`$UPSTASH_DB_NAME\` |
+          | Region | 🌐 Global | Primary: us-east-1 |
+          | Endpoint | 🔗 | \`$UPSTASH_DB_ENDPOINT\` |
+          | Console | 🔗 | [View in Upstash](https://console.upstash.com) |
+
+          > Preview database is provisioned per PR and deleted on close."
+
+          # Find existing comment
+          EXISTING_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq ".[] | select(.body | startswith(\"$COMMENT_MARKER\")) | .id" | head -1)
+
+          if [ -n "$EXISTING_ID" ]; then
+            gh api "repos/${{ github.repository }}/issues/comments/$EXISTING_ID" \
+              -X PATCH -f body="$BODY"
+          else
+            gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+              -f body="$BODY"
+          fi
+
+      - name: Use production Redis
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "UPSTASH_REDIS_REST_URL=$PROD_URL" >> "$GITHUB_ENV"
+          echo "UPSTASH_REDIS_REST_TOKEN=$PROD_TOKEN" >> "$GITHUB_ENV"
+        env:
+          PROD_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          PROD_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4

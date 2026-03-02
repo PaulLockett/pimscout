@@ -1,0 +1,59 @@
+name: Cleanup Preview Redis
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  cleanup-redis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete Upstash Redis for PR
+        env:
+          UPSTASH_EMAIL: ${{ secrets.UPSTASH_EMAIL }}
+          UPSTASH_API_KEY: ${{ secrets.UPSTASH_API_KEY }}
+        run: |
+          DB_NAME="pimscout-pr-${{ github.event.pull_request.number }}"
+
+          DB_ID=$(curl -s -u "$UPSTASH_EMAIL:$UPSTASH_API_KEY" \
+            https://api.upstash.com/v2/redis/databases | \
+            jq -r ".[] | select(.database_name == \"$DB_NAME\") | .database_id")
+
+          if [ -z "$DB_ID" ] || [ "$DB_ID" = "null" ]; then
+            echo "Database $DB_NAME not found, nothing to clean up"
+            exit 0
+          fi
+
+          echo "Deleting database $DB_NAME ($DB_ID)"
+          curl -s -u "$UPSTASH_EMAIL:$UPSTASH_API_KEY" \
+            -X DELETE \
+            "https://api.upstash.com/v2/redis/database/$DB_ID"
+          echo "Preview Redis deleted: $DB_NAME"
+
+      - name: Update PR comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_MARKER="<!-- upstash-redis-preview -->"
+          BODY="${COMMENT_MARKER}
+          **Upstash Redis Preview Database**
+
+          | | Status | Details |
+          | :--- | :--- | :--- |
+          | Database | 🗑️ Deleted | \`pimscout-pr-${{ github.event.pull_request.number }}\` |
+
+          > Preview database was cleaned up on PR close."
+
+          EXISTING_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq ".[] | select(.body | startswith(\"$COMMENT_MARKER\")) | .id" | head -1)
+
+          if [ -n "$EXISTING_ID" ]; then
+            gh api "repos/${{ github.repository }}/issues/comments/$EXISTING_ID" \
+              -X PATCH -f body="$BODY"
+          else
+            gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+              -f body="$BODY"
+          fi
