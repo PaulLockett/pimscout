@@ -19,9 +19,8 @@ export const messageAccess = {
 };
 
 export const deliveryAccess = {
-  send: delivery.send,
+  dispatch: delivery.dispatch,
   track: delivery.track,
-  verifyDelivery: delivery.verifyDelivery,
 };
 
 export const enrichmentAccess = {
@@ -32,3 +31,5 @@ export const enrichmentAccess = {
 
 export type { QualifyInput, QualifyResult, EngageInput, AdvanceInput, RetrieveResult } from "./founder.js";
 export type { DraftInput, RetrieveMessagesOptions, HydratedMessage } from "./message.js";
+export type { DispatchInput, DispatchResult, TrackResult } from "./delivery.js";
+export type { SupplementInput, LookupOptions, HydratedEnrichment } from "./enrichment.js";

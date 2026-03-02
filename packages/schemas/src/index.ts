@@ -57,6 +57,14 @@ export const ConversionPath = {
 export type ConversionPath =
   (typeof ConversionPath)[keyof typeof ConversionPath];
 
+export const EnrichmentProtocol = {
+  WEBHOOK: "webhook",
+  API: "api",
+  FILE: "file",
+} as const;
+export type EnrichmentProtocol =
+  (typeof EnrichmentProtocol)[keyof typeof EnrichmentProtocol];
+
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
 export interface Founder {
@@ -103,6 +111,16 @@ export interface Message {
   recipients: string[];
   cc: string[];
   generationContext?: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Enrichment {
+  id: string;
+  founderId: string;
+  source: string;
+  protocol: EnrichmentProtocol;
+  rawData: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
 }
