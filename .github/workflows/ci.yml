@@ -6,6 +6,10 @@ on:
     types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   check:
     if: github.event.action != 'closed'
@@ -58,7 +62,39 @@ jobs:
           echo "::add-mask::$REST_TOKEN"
           echo "UPSTASH_REDIS_REST_URL=$REST_URL" >> "$GITHUB_ENV"
           echo "UPSTASH_REDIS_REST_TOKEN=$REST_TOKEN" >> "$GITHUB_ENV"
+          echo "UPSTASH_DB_NAME=$DB_NAME" >> "$GITHUB_ENV"
+          echo "UPSTASH_DB_ENDPOINT=${REST_URL#https://}" >> "$GITHUB_ENV"
           echo "Preview Redis provisioned: $DB_NAME"
+
+      - name: Comment preview Redis status on PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_MARKER="<!-- upstash-redis-preview -->"
+          BODY="${COMMENT_MARKER}
+          **Upstash Redis Preview Database**
+
+          | | Status | Details |
+          | :--- | :--- | :--- |
+          | Database | ✅ Active | \`$UPSTASH_DB_NAME\` |
+          | Region | 🌐 Global | Primary: us-east-1 |
+          | Endpoint | 🔗 | \`$UPSTASH_DB_ENDPOINT\` |
+          | Console | 🔗 | [View in Upstash](https://console.upstash.com) |
+
+          > Preview database is provisioned per PR and deleted on close."
+
+          # Find existing comment
+          EXISTING_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq ".[] | select(.body | startswith(\"$COMMENT_MARKER\")) | .id" | head -1)
+
+          if [ -n "$EXISTING_ID" ]; then
+            gh api "repos/${{ github.repository }}/issues/comments/$EXISTING_ID" \
+              -X PATCH -f body="$BODY"
+          else
+            gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+              -f body="$BODY"
+          fi
 
       - name: Use production Redis
         if: github.event_name != 'pull_request'
@@ -103,3 +139,28 @@ jobs:
             -X DELETE \
             "https://api.upstash.com/v2/redis/database/$DB_ID"
           echo "Preview Redis deleted: $DB_NAME"
+
+      - name: Update PR comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_MARKER="<!-- upstash-redis-preview -->"
+          BODY="${COMMENT_MARKER}
+          **Upstash Redis Preview Database**
+
+          | | Status | Details |
+          | :--- | :--- | :--- |
+          | Database | 🗑️ Deleted | \`pimscout-pr-${{ github.event.pull_request.number }}\` |
+
+          > Preview database was cleaned up on PR close."
+
+          EXISTING_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq ".[] | select(.body | startswith(\"$COMMENT_MARKER\")) | .id" | head -1)
+
+          if [ -n "$EXISTING_ID" ]; then
+            gh api "repos/${{ github.repository }}/issues/comments/$EXISTING_ID" \
+              -X PATCH -f body="$BODY"
+          else
+            gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+              -f body="$BODY"
+          fi
