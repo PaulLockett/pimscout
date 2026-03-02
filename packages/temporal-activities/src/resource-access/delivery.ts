@@ -48,7 +48,6 @@ interface DeliveryRecord {
 export async function dispatch(input: DispatchInput): Promise<DispatchResult> {
   const db = getDb();
   const redis = getRedis();
-  const resend = getResend();
 
   // Guard: message must exist
   const [message] = await db
@@ -76,7 +75,8 @@ export async function dispatch(input: DispatchInput): Promise<DispatchResult> {
     throw new Error(`No envelope found for message ${input.messageId}`);
   }
 
-  // Send via Resend
+  // All guards passed — now touch external service
+  const resend = getResend();
   const from = input.from ?? "paul@pimandco.ai";
   const { data, error } = await resend.emails.send({
     from,
@@ -109,7 +109,6 @@ export async function dispatch(input: DispatchInput): Promise<DispatchResult> {
 
 export async function track(messageId: string): Promise<TrackResult> {
   const redis = getRedis();
-  const resend = getResend();
 
   // Read delivery record from Redis
   const delivery = await redis.get<DeliveryRecord>(
@@ -120,7 +119,8 @@ export async function track(messageId: string): Promise<TrackResult> {
     throw new Error(`No delivery record found for message ${messageId}`);
   }
 
-  // Fetch current status from Resend
+  // Delivery record exists — now fetch from external service
+  const resend = getResend();
   const { data, error } = await resend.emails.get(delivery.resendId);
 
   if (error || !data) {
