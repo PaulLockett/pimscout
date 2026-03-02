@@ -20,15 +20,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo typecheck lint build
 
-  provision-redis:
-    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+  test:
+    needs: check
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
-    outputs:
-      rest_url: ${{ steps.provision.outputs.rest_url }}
-      rest_token: ${{ steps.provision.outputs.rest_token }}
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
     steps:
-      - name: Provision Upstash Redis for PR
-        id: provision
+      - name: Provision preview Redis for PR
+        if: github.event_name == 'pull_request'
         env:
           UPSTASH_EMAIL: ${{ secrets.UPSTASH_EMAIL }}
           UPSTASH_API_KEY: ${{ secrets.UPSTASH_API_KEY }}
@@ -55,25 +56,19 @@ jobs:
           fi
 
           echo "::add-mask::$REST_TOKEN"
-          echo "::add-mask::$REST_URL"
-
-          echo "rest_url=$REST_URL" >> "$GITHUB_OUTPUT"
-          echo "rest_token=$REST_TOKEN" >> "$GITHUB_OUTPUT"
+          echo "UPSTASH_REDIS_REST_URL=$REST_URL" >> "$GITHUB_ENV"
+          echo "UPSTASH_REDIS_REST_TOKEN=$REST_TOKEN" >> "$GITHUB_ENV"
           echo "Preview Redis provisioned: $DB_NAME"
 
-  test:
-    needs: [check, provision-redis]
-    if: |
-      always() &&
-      needs.check.result == 'success' &&
-      (needs.provision-redis.result == 'success' || needs.provision-redis.result == 'skipped')
-    runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      UPSTASH_REDIS_REST_URL: ${{ needs.provision-redis.outputs.rest_url || secrets.UPSTASH_REDIS_REST_URL }}
-      UPSTASH_REDIS_REST_TOKEN: ${{ needs.provision-redis.outputs.rest_token || secrets.UPSTASH_REDIS_REST_TOKEN }}
-      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-    steps:
+      - name: Use production Redis
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "UPSTASH_REDIS_REST_URL=$PROD_URL" >> "$GITHUB_ENV"
+          echo "UPSTASH_REDIS_REST_TOKEN=$PROD_TOKEN" >> "$GITHUB_ENV"
+        env:
+          PROD_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          PROD_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
