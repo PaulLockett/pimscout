@@ -48,7 +48,7 @@ jobs:
             echo "Creating database $DB_NAME"
             RESPONSE=$(curl -s -u "$UPSTASH_EMAIL:$UPSTASH_API_KEY" \
               -H "Content-Type: application/json" \
-              -d "{\"name\": \"$DB_NAME\", \"region\": \"us-east-1\", \"tls\": true}" \
+              -d "{\"name\": \"$DB_NAME\", \"region\": \"global\", \"primary_region\": \"us-east-1\", \"tls\": true}" \
               https://api.upstash.com/v2/redis/database)
             REST_URL="https://$(echo "$RESPONSE" | jq -r '.endpoint')"
             REST_TOKEN=$(echo "$RESPONSE" | jq -r '.rest_token')
