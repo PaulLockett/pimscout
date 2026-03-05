@@ -141,6 +141,23 @@ export interface ConsolidatedEnrichment {
   lastConsolidatedAt: Date;
 }
 
+export interface ComposeInput {
+  founderId: string;
+  relationshipId: string;
+  messageType: MessageType;
+  enrichmentId?: string;
+  scoutId?: string;
+}
+
+export interface ComposeResult {
+  subject: string;
+  body: string;
+  personalizationLevel: PersonalizationLevel;
+  recipients: string[];
+  cc: string[];
+  generationContext: Record<string, unknown>;
+}
+
 export interface Scout {
   id: string;
   name: string;
