@@ -4,7 +4,7 @@
 
 import { eq, and } from "drizzle-orm";
 import { getDb, getRedis, enrichments, enrichmentChanges } from "@pimscout/db";
-import type { EnrichmentProtocol } from "@pimscout/schemas";
+import type { EnrichmentProtocol, ConsolidatedEnrichment } from "@pimscout/schemas";
 
 // ─── Input / Output Types ───────────────────────────────────────────────────
 
@@ -115,6 +115,122 @@ export async function lookup(
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }));
+}
+
+// ─── Source-Specific Normalizers ─────────────────────────────────────────────
+// Adding a new enrichment source = adding one function to this map.
+// This is the volatility this RA encapsulates.
+
+interface NormalizedFields {
+  topics: string[];
+  actionItems: string[];
+  keyQuestions: string[];
+  summary: string | null;
+  companyContext: {
+    sector?: string;
+    stage?: string;
+    raiseAmount?: string;
+    oneLiner?: string;
+  };
+}
+
+type Normalizer = (rawData: Record<string, unknown>) => NormalizedFields;
+
+function normalizeReadAi(raw: Record<string, unknown>): NormalizedFields {
+  const summary = raw["summary"] as Record<string, unknown> | undefined;
+  const transcript = raw["transcript"] as Record<string, unknown> | undefined;
+
+  return {
+    topics: Array.isArray(raw["topics"])
+      ? (raw["topics"] as string[])
+      : Array.isArray(summary?.["topics"])
+        ? (summary["topics"] as string[])
+        : [],
+    actionItems: Array.isArray(raw["action_items"])
+      ? (raw["action_items"] as string[])
+      : Array.isArray(summary?.["action_items"])
+        ? (summary["action_items"] as string[])
+        : [],
+    keyQuestions: Array.isArray(raw["key_questions"])
+      ? (raw["key_questions"] as string[])
+      : [],
+    summary: (summary?.["overview"] as string) ?? (raw["summary"] as string) ?? null,
+    companyContext: {
+      sector: transcript?.["sector"] as string | undefined,
+      stage: transcript?.["stage"] as string | undefined,
+      raiseAmount: transcript?.["raise_amount"] as string | undefined,
+      oneLiner: transcript?.["one_liner"] as string | undefined,
+    },
+  };
+}
+
+function normalizeFallback(raw: Record<string, unknown>): NormalizedFields {
+  return {
+    topics: Array.isArray(raw["topics"]) ? (raw["topics"] as string[]) : [],
+    actionItems: Array.isArray(raw["action_items"]) ? (raw["action_items"] as string[]) : [],
+    keyQuestions: Array.isArray(raw["key_questions"]) ? (raw["key_questions"] as string[]) : [],
+    summary: (raw["summary"] as string) ?? null,
+    companyContext: {
+      sector: raw["sector"] as string | undefined,
+      stage: raw["stage"] as string | undefined,
+      raiseAmount: raw["raise_amount"] as string | undefined,
+      oneLiner: raw["one_liner"] as string | undefined,
+    },
+  };
+}
+
+const NORMALIZERS: Record<string, Normalizer> = {
+  "read-ai": normalizeReadAi,
+};
+
+function getNormalizer(source: string): Normalizer {
+  return NORMALIZERS[source] ?? normalizeFallback;
+}
+
+export async function consolidate(founderId: string): Promise<ConsolidatedEnrichment> {
+  const enrichmentsList = await lookup(founderId);
+
+  const allTopics: string[] = [];
+  const allActionItems: string[] = [];
+  const allKeyQuestions: string[] = [];
+  const allSummaries: string[] = [];
+  const sources: string[] = [];
+  let companyContext: ConsolidatedEnrichment["companyContext"] = {};
+
+  for (const enrichment of enrichmentsList) {
+    if (!enrichment.rawData) continue;
+
+    const normalizer = getNormalizer(enrichment.source);
+    const normalized = normalizer(enrichment.rawData);
+
+    allTopics.push(...normalized.topics);
+    allActionItems.push(...normalized.actionItems);
+    allKeyQuestions.push(...normalized.keyQuestions);
+    if (normalized.summary) allSummaries.push(normalized.summary);
+
+    // Merge company context — later sources overwrite earlier ones
+    companyContext = {
+      ...companyContext,
+      ...Object.fromEntries(
+        Object.entries(normalized.companyContext).filter(([, v]) => v !== undefined),
+      ),
+    };
+
+    if (!sources.includes(enrichment.source)) {
+      sources.push(enrichment.source);
+    }
+  }
+
+  return {
+    founderId,
+    topics: [...new Set(allTopics)],
+    actionItems: [...new Set(allActionItems)],
+    keyQuestions: [...new Set(allKeyQuestions)],
+    summaries: allSummaries,
+    companyContext,
+    sources,
+    lastConsolidatedAt: new Date(),
+  };
 }
 
 export async function verify(enrichmentId: string): Promise<boolean> {

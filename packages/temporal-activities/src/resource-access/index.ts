@@ -27,9 +27,11 @@ export const enrichmentAccess = {
   lookup: enrichment.lookup,
   verify: enrichment.verify,
   supplement: enrichment.supplement,
+  consolidate: enrichment.consolidate,
 };
 
 export type { QualifyInput, QualifyResult, EngageInput, AdvanceInput, RetrieveResult } from "./founder.js";
 export type { DraftInput, RetrieveMessagesOptions, HydratedMessage } from "./message.js";
 export type { DispatchInput, DispatchResult, TrackResult } from "./delivery.js";
 export type { SupplementInput, LookupOptions, HydratedEnrichment } from "./enrichment.js";
+export type { ConsolidatedEnrichment } from "@pimscout/schemas";
