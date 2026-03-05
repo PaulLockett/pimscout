@@ -1,6 +1,6 @@
 import { TASK_QUEUES, type TaskQueue } from "./task-queues.js";
 
-export type ComponentType = "manager" | "engine" | "resource-access";
+export type ComponentType = "manager" | "engine" | "resource-access" | "utility";
 
 export interface ComponentConfig {
   taskQueue: TaskQueue;
@@ -59,6 +59,13 @@ export const COMPONENTS: Record<string, ComponentConfig> = {
     workflowSubpath: null,
     activityModule: "@pimscout/temporal-activities/resource-access",
     activityExport: "enrichmentAccess",
+  },
+  "llm-utility": {
+    taskQueue: TASK_QUEUES.LLM_UTILITY,
+    type: "utility",
+    workflowSubpath: null,
+    activityModule: "@pimscout/temporal-activities/utilities",
+    activityExport: "llmUtility",
   },
 } as const;
 

@@ -137,6 +137,24 @@ export const messages = pgTable("messages", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const aiInteractionStatusEnum = pgEnum("ai_interaction_status", [
+  "success",
+  "error",
+  "retry",
+]);
+
+export const aiInteractions = pgTable("ai_interactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  programName: text("program_name").notNull(),
+  callerEngine: text("caller_engine").notNull(),
+  model: text("model").notNull(),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  latencyMs: integer("latency_ms").notNull().default(0),
+  status: aiInteractionStatusEnum("status").notNull().default("success"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const enrichments = pgTable("enrichments", {
   id: uuid("id").primaryKey().defaultRandom(),
   founderId: uuid("founder_id")
@@ -274,3 +292,5 @@ export const enrichmentChangesRelations = relations(
     }),
   }),
 );
+
+// ai_interactions has no foreign keys — standalone logging table
