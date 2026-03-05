@@ -8,5 +8,4 @@ export const composingEngine = {
 
 export const enrichingEngine = {
   enrich: enriching.enrich,
-  processTranscript: enriching.processTranscript,
 };

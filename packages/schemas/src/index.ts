@@ -125,6 +125,22 @@ export interface Enrichment {
   updatedAt: Date;
 }
 
+export interface ConsolidatedEnrichment {
+  founderId: string;
+  topics: string[];
+  actionItems: string[];
+  keyQuestions: string[];
+  summaries: string[];
+  companyContext: {
+    sector?: string;
+    stage?: string;
+    raiseAmount?: string;
+    oneLiner?: string;
+  };
+  sources: string[];
+  lastConsolidatedAt: Date;
+}
+
 export interface Scout {
   id: string;
   name: string;
