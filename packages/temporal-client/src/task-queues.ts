@@ -6,6 +6,7 @@ export const TASK_QUEUES = {
   MESSAGE_ACCESS: "message-access",
   DELIVERY_ACCESS: "delivery-access",
   ENRICHMENT_ACCESS: "enrichment-access",
+  LLM_UTILITY: "llm-utility",
 } as const;
 
 export type TaskQueue = (typeof TASK_QUEUES)[keyof typeof TASK_QUEUES];
